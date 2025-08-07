@@ -1,23 +1,27 @@
 ## Prepare Data for Asset Pricing Projects
 
-This repository imports and processes various useful datasets for asset pricing studies.
+This repository imports and processes several datasets commonly used in empirical asset pricing research.
 
 ### import_JKP_stock_charcs.ipynb
 
-This notebook imports returns and firm characteristics for individual stocks from [Global Factor Data](https://jkpfactors.com/stock-char) organized by Prof. Theis Jensen, Bryan Kelly, and Lasse Heje Pedersen.
+This notebook imports individual stock returns and firm characteristics from [Global Factor Data](https://jkpfactors.com/stock-char), compiled by Professors Theis Jensen, Bryan Kelly, and Lasse Heje Pedersen.
 
 ### replicate_FF_ports_factors.ipynb
 
-This notebook replicates the characteristics-sorted portfolios and risk factors from [Fama and French](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html). My replication of the factors MKT, SMB, HML, RMW, CMA, and UMD shows correlations of 0.997, 0.982, 0.981, 0.981, and 0.997, respectively, with the corresponding Fama-French provided factors.
+This notebook replicates the characteristics-sorted portfolios and risk factors provided by [Fama and French](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html).  
+The replicated factors—MKT, SMB, HML, RMW, CMA, and UMD—exhibit correlations of 0.997, 0.982, 0.981, 0.981, and 0.997, respectively, with the official Fama-French factors.
 
 ### replicate_JKP_ports_factors.ipynb
 
-This notebook replicates the characteristics-sorted portfolios and risk factors from [Global Factor Data](https://jkpfactors.com/stock-char) and [Jensen, Kelly, and Pedersen (2023)](https://onlinelibrary.wiley.com/doi/full/10.1111/jofi.13249). My replication of the factors "market_equity" (size), "be_me" (value), "ope_be" (profitability), "at_gr1" (Investment), and "ret_12_1" (momentum) shows correlations of 0.998, 0.997, 0.993, 0.993, and 0.997, respectively, with the corresponding JKP provided factors.
+This notebook replicates the characteristics-sorted portfolios and risk factors from both [Global Factor Data](https://jkpfactors.com/stock-char) and [Jensen, Kelly, and Pedersen (2023)](https://onlinelibrary.wiley.com/doi/full/10.1111/jofi.13249).  
+The replicated factors—**market_equity** (size), **be_me** (value), **ope_be** (profitability), **at_gr1** (investment), and **ret_12_1** (momentum)—exhibit correlations of 0.998, 0.997, 0.993, 0.993, and 0.997, respectively, with the corresponding JKP-provided factors.
 
 ### prepare_data.ipynb
 
-This notebooks constructs the following datasets that could be used in various asset pricing studies:
+This notebook constructs processed datasets for use in asset pricing applications, including:
 
-- Characteristics univariate-sorted portfolio weights on individual stocks.
-- Risk factor weights on individual stocks.
-- Individual stock characteristics with (1) missing values filled by industrial cross-sectional median and (2) rank-normalization to the (-1,1) interval.
+- Portfolio weights for univariate-sorted portfolios on individual stocks. 
+- Risk factor weights on individual stocks. 
+- Firm-level characteristics datasets that:
+  - Fill missing values by the cross-sectional median within each industry.
+  - Apply rank-transformation and normalization to the \(-1, 1\) interval.
