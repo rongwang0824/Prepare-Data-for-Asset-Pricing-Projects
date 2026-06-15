@@ -338,7 +338,7 @@ proc sql;
     order by
         mgrno,
         rdate,
-        descending flag;
+        flag desc;
 quit;
 
 /*-----------------------------------------------------------------------
@@ -364,7 +364,7 @@ proc sql;
     order by
         mgrno,
         rdate,
-        descending flag;
+        flag desc;
 quit;
 
 /*-----------------------------------------------------------------------
