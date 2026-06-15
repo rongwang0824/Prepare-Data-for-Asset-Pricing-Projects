@@ -12,7 +12,7 @@ libname f13 '/wrds/sec/sasdata';
 /* Modified based on the WRDS research note: 
    https://wrds-www.wharton.upenn.edu/documents/752/Research_Note_-Thomson_S34_Data_Issues_mldAsdi.pdf
    Note the transition from CRSP SIZ/FIZ to CIZ Format.
-   I use wrds_names_query instead of msenames, msf_v2 instead of msf.
+   I use stksecurityinfohdr instead of msenames, msf_v2 instead of msf.
    Rong Wang, June 2026
  */
 
@@ -41,7 +41,7 @@ proc sql;
 
     from f13.WRDS_13F_Holdings as a
 
-    inner join crsp.wrds_names_query as b
+    inner join crsp.stksecurityinfohdr as b
         on substr(a.cusip,1,8) = b.cusip
        and a.rdate >= b.secinfostartdt
        and (missing(b.secinfoenddt)
