@@ -43,9 +43,6 @@ proc sql;
 
     inner join crsp.stksecurityinfohdr as b
         on substr(a.cusip,1,8) = b.cusip
-       and a.rdate >= b.secinfostartdt
-       and (missing(b.secinfoenddt)
-            or a.rdate <= b.secinfoenddt)
 
     where missing(a.putCall)
       and not missing(a.cusip)
