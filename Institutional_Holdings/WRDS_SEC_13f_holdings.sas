@@ -22,7 +22,6 @@ libname f13 '/wrds/sec/sasdata';
 *
 * - Keep only filings after XML reporting became mandatory (2013Q2)
 * - Match holdings to CRSP PERMNOs using 8-digit CUSIP
-* - Use CRSP security information dates to avoid historical CUSIP reuse
 * - Keep only positive holding positions
 **************************************************************************/
 
@@ -228,7 +227,8 @@ proc sql;
 
     inner join crsp.msf_v2 as b
         on a.permno = b.permno
-       and a.rdate  = b.mthcaldt
+       and year(a.rdate) = year(b.mthcaldt)
+       and month(a.rdate) = month(b.mthcaldt)
 
     where b.securitytype    = 'EQTY'
       and b.securitysubtype = 'COM'
