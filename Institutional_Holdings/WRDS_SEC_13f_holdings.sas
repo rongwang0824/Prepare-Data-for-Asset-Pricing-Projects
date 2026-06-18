@@ -12,10 +12,9 @@ libname f13 '/wrds/sec/sasdata';
 /* Modified based on the WRDS research note: 
    https://wrds-www.wharton.upenn.edu/documents/752/Research_Note_-Thomson_S34_Data_Issues_mldAsdi.pdf
    Note the transition from CRSP SIZ/FIZ to CIZ Format.
-   I use stksecurityinfohdr instead of msenames, msf_v2 instead of msf.
+   I use stocknames_v2 instead of msenames, msf_v2 instead of msf.
    Rong Wang, June 2026
  */
-
 
 /**************************************************************************
 * Step 1. Load 13F holdings data and construct initial filing sample
@@ -26,29 +25,26 @@ libname f13 '/wrds/sec/sasdata';
 **************************************************************************/
 
 proc sql;
-    create table Fix1 as
-    select distinct
-        a.cik,
-        a.rdate,
-        a.fdate,
-        a.fname,
-        b.permno,
-        a.cusip,
-        a.value      as value  label="Holding Value",
-        a.sshPrnamt  as shares label="Holding Shares",
-        count(*)     as n13frecs label="Number of Records"
-
-    from f13.WRDS_13F_Holdings as a
-
-    inner join crsp.stksecurityinfohdr as b
-        on substr(a.cusip,1,8) = b.cusip
-
-    where missing(a.putCall)
-      and not missing(a.cusip)
-      and a.sshPrnamt > 0
-      and a.rdate >= "30JUN2013"d
-
-    group by a.fname;
+    create table Fix1 as 
+    select distinct 
+        cik, 
+        coname, 
+        rdate, 
+        fdate, 
+        fname,
+        permno, 
+        cusip, 
+        value "Holding Value", 
+        sshPrnamt as shares "Holding Shares",
+        count(*) as n13frecs "Number of Records"
+    from f13.Wrds_13f_holdings as a, 
+         (select distinct cusip, permno from crsp.stocknames_v2 where not missing(cusip)) as b
+    where missing(putCall) 
+      and not missing(a.cusip) 
+      and substr(a.cusip,1,8)=b.cusip 
+      and sshPrnamt>0 
+      and rdate>="30JUN2013"d
+    group by fname;
 quit;
 
 
@@ -68,34 +64,28 @@ quit;
 * Create one observation per filing
 *-----------------------------------------------------------------------*/
 proc sql;
-    create table F13_dates as
-    select distinct
-        cik,
-        rdate,
-        fdate,
-        fname,
-        n13frecs
+    create table F13_dates as 
+    select distinct cik, rdate, fdate, fname, n13frecs, coname
     from Fix1
-    order by cik, rdate, fdate, fname;
+    order by CIK, rdate, fdate, fname;
 quit;
 
 /*-----------------------------------------------------------------------
 * Add filing metadata from WRDS summary file
+* Focus on first reported filings: 
+* Exclude confidential treatment amendments and securities
 *-----------------------------------------------------------------------*/
-proc sql;
-    create table F13_dates as
-    select
-        a.*,
-        b.reportType,
-        b.amendmentType,
+proc sql undo_policy=none;
+    create table F13_dates as 
+    select distinct 
+        a.*, 
+        b.reportType, 
+        b.amendmentType, 
         b.confDeniedExpired,
         b.tableEntryTotal
-    from F13_dates as a
-
-    left join f13.WRDS_13F_Summary as b
-        on a.fname = b.fname
-
-    order by cik, rdate, fdate;
+    from F13_dates as a, f13.WRDS_13f_Summary as b
+    where a.fname=b.fname
+    order by CIK, rdate, fdate;
 quit;
 
 /*
@@ -109,23 +99,16 @@ tableEntryTotal:
     Number of securities reported in filing
 */
 
+
 /*-----------------------------------------------------------------------
 * Separate quarters with one filing from quarters with multiple filings
 *-----------------------------------------------------------------------*/
-data f13_dates1
-     f13_dates2;
-
-    set F13_dates;
+data f13_dates1 f13_dates2;
+    set f13_dates;
     by cik rdate;
-
-    /* Fill missing tableEntryTotal if necessary */
-    if tableEntryTotal <= 0 and n13frecs > 0 then
-        tableEntryTotal = n13frecs;
-
-    if first.rdate and last.rdate then
-        output f13_dates1;
-    else
-        output f13_dates2;
+    if tableEntryTotal<=0 and n13frecs>0 then tableEntryTotal=n13frecs;
+    if first.rdate and last.rdate then output f13_dates1;
+    else output f13_dates2;
 run;
 
 /*-----------------------------------------------------------------------
@@ -137,12 +120,7 @@ run;
 data f13_dates2;
     set f13_dates2;
     by cik rdate;
-
-    if (fdate-lag(fdate) > 30
-        or tableEntryTotal/lag(tableEntryTotal) < 0.5
-        or upcase(confDeniedExpired) = "TRUE")
-       and not first.rdate
-    then delete;
+    if (fdate-lag(fdate)>30 or tableEntryTotal/lag(tableEntryTotal)<0.5 or upcase(confDeniedExpired="TRUE")) and not(first.rdate) then delete;
 run;
 
 /*-----------------------------------------------------------------------
@@ -151,55 +129,50 @@ run;
 data f13_dates2;
     set f13_dates2;
     by cik rdate fdate;
-
     if last.rdate;
 run;
 
 /*-----------------------------------------------------------------------
 * Final list of valid filings
 *-----------------------------------------------------------------------*/
-data F13_dates;
-    set f13_dates1
-        f13_dates2;
-        
-    keep
-        cik
-        rdate
-        fdate
-        fname;
+data f13_dates;
+    set f13_dates1 f13_dates2;
+    by cik rdate;
+    keep cik rdate fdate fname coname;
 run;
 
 /*-----------------------------------------------------------------------
 * Housekeeping
 *-----------------------------------------------------------------------*/
-proc datasets library=work nolist;
-    delete f13_dates1 f13_dates2;
+proc sql; 
+    drop table f13_dates1, f13_dates2; 
 quit;
 
-/* Sanity check: one filing per CIK-quarter */
-proc sort data=F13_dates nodupkey;
-    by cik rdate;
+/*-----------------------------------------------------------------------
+* Sanity check: one filing per CIK-quarter 
+*-----------------------------------------------------------------------*/
+proc sort data=f13_dates nodupkey; 
+    by cik rdate; 
 run;
 
 /*-----------------------------------------------------------------------
 * Construct holdings dataset using selected filings
 *-----------------------------------------------------------------------*/
 proc sql;
-    create table Fix2 as
-    select
-        a.cik,
-        a.rdate,
-        a.fdate,
-        a.fname,
+    create table Fix2 as 
+    select distinct 
+        a.cik, 
+        a.coname, 
+        a.rdate, 
+        a.fdate, 
+        a.fname, 
         a.n13frecs,
-        a.permno,
-        a.cusip,
-        a.value,
+        a.permno, 
+        a.cusip, 
+        a.value, 
         a.shares
-    from Fix1 as a
-
-    inner join F13_dates as b
-        on a.fname = b.fname;
+    from Fix1 as a, f13_dates as b
+    where a.fname=b.fname;
 quit;
 
 
@@ -209,7 +182,6 @@ quit;
 * - Restrict to U.S. common stocks
 * - Obtain quarter-end price and shares outstanding
 * - Calculate market capitalization
-* - Calculate institutional ownership percentage
 **************************************************************************/
 
 proc sql;
@@ -217,36 +189,27 @@ proc sql;
     select
         a.*,
         abs(b.mthprc) as prc,
-        abs(b.mthprc) * b.shrout / 1000 as mktcap, /* $mil */
-        case
-            when b.shrout > 0
-            then a.shares / (b.shrout * 1000)
-        end as ownpct
+        b.shrout as shrout,
+        abs(b.mthprc) * b.shrout / 1000 as mktcap /* $mil */
 
     from Fix2 as a
 
     inner join crsp.msf_v2 as b
         on a.permno = b.permno
-       and year(a.rdate) = year(b.mthcaldt)
-       and month(a.rdate) = month(b.mthcaldt)
+       and a.rdate=intnx("month", b.mthcaldt, 0, "e")
 
-    where b.securitytype    = 'EQTY'
+    where b.sharetype       = 'NS'
+      and b.securitytype    = 'EQTY'
       and b.securitysubtype = 'COM'
-      and b.sharetype       = 'NS'
       and b.usincflg        = 'Y'
       and b.issuertype in ('ACOR','CORP');
 quit;
 
 /*-----------------------------------------------------------------------
-* Winsorize ownership percentages
 * Aggregate BlackRock subsidiaries to parent CIK
 *-----------------------------------------------------------------------*/
 data Fix4;
     set Fix3;
-
-    /* Roughly 300 observations per quarter exceed 50% ownership.
-       Cap ownership at 50%. */
-    if ownpct > 0.5 then ownpct = 0.5;
 
     /* Aggregate BlackRock subsidiaries to parent company
        (Ben-David et al., 2016) */
@@ -270,16 +233,10 @@ proc sql;
         rdate,
         permno,
         prc,
+        shrout,
         mktcap,
-
-        sum(value)  as value
-            format=dollar12.2,
-
-        sum(shares) as shares
-            format=comma18.0,
-
-        sum(ownpct) as ownpct
-            format=percentn8.2
+        sum(value)  as value  format=dollar12.2,
+        sum(shares) as shares format=comma18.0
 
     from Fix4
 
@@ -309,10 +266,8 @@ run;
 * One observation per manager-quarter
 *-----------------------------------------------------------------------*/
 proc sql;
-    create table Link1 as
-    select distinct
-        cik,
-        rdate
+    create table Link1 as 
+    select distinct CIK, rdate
     from Fix5;
 quit;
 
@@ -320,123 +275,114 @@ quit;
 * Link CIK to WRDS manager identifiers
 *-----------------------------------------------------------------------*/
 proc sql;
-    create table Link2 as
-    select
-        a.cik,
-        a.rdate,
-        b.mgrno,
-        b.matchrate,
-        b.flag
-    from Link1 as a
-
-    left join f13.WRDS_13F_Link as b
-        on a.cik = b.cik
-
-    order by
-        mgrno,
-        rdate,
-        flag desc;
+    create table Link2 as 
+    select distinct 
+        b.mgrno, 
+        a.*, 
+        b.MatchRate, 
+        b.Flag
+    from Link1 as a 
+    left join f13.wrds_13f_link as b 
+    	on a.cik=b.cik
+    order by mgrno, rdate, flag desc;
 quit;
 
 /*-----------------------------------------------------------------------
 * Determine whether manager exists in Thomson 13F database
 *-----------------------------------------------------------------------*/
 proc sql;
-    create table Link3 as
-    select
-        a.*,
+    create table Link3 as 
+    select distinct 
+        a.*, 
         (b.mgrno is not null) as ins34
-    from Link2 as a
-
-    left join
-    (
-        select distinct
-            mgrno
-        from tfn.s34type1
-        where fdate="30JUN2013"d
-    ) as b
-
-        on a.mgrno=b.mgrno
-
-    order by
-        mgrno,
-        rdate,
-        flag desc;
+    from Link2 as a 
+    left join (select distinct mgrno from tfn.s34type1 where fdate="30JUN2013"d) as b 
+    	on a.mgrno=b.mgrno
+    order by mgrno, rdate, flag desc;
 quit;
 
 /*-----------------------------------------------------------------------
-* If multiple MGRNOs map to one CIK-quarter,
-* keep the highest-quality manager link.
+* If multiple links, then keep link with highest link accuracy score or link
+* flag, ie Best Match
 *-----------------------------------------------------------------------*/
 data Link3;
     set Link3;
     by mgrno rdate descending flag;
-
-    if not missing(mgrno) and not first.rdate then
-        delete;
+    if not missing(mgrno) and not first.rdate then delete;
 run;
 
-proc sort data=Link3;
-    by
-        cik
-        rdate
-        descending flag
-        descending ins34
-        descending matchrate;
+proc sort data=Link3; 
+    by CIK rdate descending flag descending ins34 descending MatchRate; 
 run;
 
 data Link4;
     set Link3;
-    by cik rdate;
-
+    by CIK rdate descending flag;
     if first.rdate;
 run;
 
-/*-----------------------------------------------------------------------
-* Sanity check:
-* one manager per CIK-quarter
-*-----------------------------------------------------------------------*/
-proc sort data=Link4 nodupkey;
-    by cik rdate;
+/* Sanity Check */ 
+proc sort data=Link4 nodupkey; 
+    by cik rdate; 
 run;
 
-/*-----------------------------------------------------------------------
-* Merge manager identifiers back into holdings
-*-----------------------------------------------------------------------*/
 proc sql;
-    create table Fix6 as
-    select
-        b.mgrno,
+    create table Fix6 as 
+    select distinct 
+        b.mgrno, 
         a.*
-    from Fix5 as a
-
-    left join Link4 as b
-        on a.cik   = b.cik
-       and a.rdate = b.rdate;
+    from Fix5 as a 
+    left join Link4 as b 
+    	on a.CIK=b.CIK 
+    	and a.rdate=b.rdate;
 quit;
 
 /*-----------------------------------------------------------------------
-* Create synthetic manager IDs for unmatched CIKs
+* When no Thomson entity exists, create a mgrno as a negative CIK number
 *-----------------------------------------------------------------------*/
-data F13_Holdings;
+data Fix7;
     set Fix6;
-
-    if missing(mgrno) then
-        mgrno = -input(cik,best12.);
+    /* Create a unique new mgrno number */
+    if missing(mgrno) then mgrno = -input(CIK, best12.);
 run;
 
-/*-----------------------------------------------------------------------
-* Sanity check:
-* one observation per manager-quarter-stock
-*-----------------------------------------------------------------------*/
-proc sort data=F13_Holdings nodupkey;
-    by mgrno rdate permno;
+/* Sanity Check */ 
+proc sort data=Fix7 nodupkey; 
+    by mgrno rdate permno; 
 run;
 
 
 /**************************************************************************
-* Step 5. Save data
+* Step 5. Add names, and finalize the dataset
 **************************************************************************/
+
+proc sql;
+    create table FixNames as 
+    select distinct CIK, coname, rdate
+    from Fix4;
+quit;
+
+proc sort data=FixNames nodupkey; 
+    by cik rdate; 
+run;
+
+proc sql;
+    create table F13_Holdings as 
+    select 
+        b.coname, 
+        a.*
+    from Fix7 as a 
+    left join FixNames as b on a.CIK=b.CIK and a.rdate=b.rdate;
+quit;
+
+proc sort data=F13_Holdings nodupkey; 
+    by mgrno rdate permno; 
+run;
+
+/**************************************************************************
+* Save data
+**************************************************************************/
+
 data out.WRDS_SEC_2013_2025;
     set F13_Holdings;
 run;
