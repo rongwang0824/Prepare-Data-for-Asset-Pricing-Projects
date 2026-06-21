@@ -1,4 +1,4 @@
-function Options_cleaned = clean_options_data(rawOptions,pars)
+function Options_cleaned = clean_OptionMetrics_data(rawOptions,pars)
 %{
 PURPOSE:
     Cleans the raw options data imported from OptionMetrics.
