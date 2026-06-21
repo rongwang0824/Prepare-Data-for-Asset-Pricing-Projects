@@ -11,7 +11,7 @@ This folder contains notebooks for importing stock characteristics and replicati
 Files include:
 
 - **JKP_portfolios_factors_weights.ipynb** – Imports and constructs stock characteristics, characteristic-sorted portfolios, portfolio weights, risk factors, and factor weights.
-- **replicate_JKP_ports_factors.ipynb** – Replicates the characteristic-sorted portfolios and risk factors from both the [Global Factor Data](https://jkpfactors.com/stock-char) library and Jensen, Kelly, and Pedersen (2023).
+- **replicate_JKP_ports_factors.ipynb** – Replicates the characteristic-sorted portfolios and risk factors from the [Global Factor Data](https://jkpfactors.com/stock-char) library.
 - **replicate_FF_ports_factors.ipynb** – Replicates the characteristic-sorted portfolios and risk factors from the [Fama–French Data Library](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html).
 
 ---
