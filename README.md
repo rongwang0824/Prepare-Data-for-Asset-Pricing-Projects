@@ -1,4 +1,4 @@
-## Prepare Data for Asset Pricing Projects
+## Data for Asset Pricing
 
 This repository imports and processes several datasets commonly used in empirical asset pricing research.
 
